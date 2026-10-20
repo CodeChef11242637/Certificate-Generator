@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bulk Certificate Name Changer</title>
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.min.js"></script>
+<style>
+body{background:linear-gradient(135deg,#eef2ff,#faf5ff 50%,#fff1f2);min-height:100vh;font-family:ui-sans-serif,system-ui,sans-serif}
+.blob{position:fixed;border-radius:9999px;filter:blur(70px);opacity:.5;z-index:0;pointer-events:none;animation:fl 14s ease-in-out infinite}
+@keyframes fl{0%,100%{transform:translate(0,0)}50%{transform:translate(50px,-60px)}}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+header,main,footer,#msg{position:relative;z-index:1}
+section.bg-white,div.card.bg-white{background:rgba(255,255,255,.78);backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.9);border-radius:1.1rem;box-shadow:0 10px 30px -14px rgba(79,70,229,.35);transition:.25s}
+section.bg-white{padding:1.1rem}
+section.bg-white:hover,div.card.bg-white:hover{transform:translateY(-2px);box-shadow:0 18px 40px -14px rgba(124,58,237,.45)}
+h2>span:first-child{display:inline-grid;place-items:center;width:1.8rem;height:1.8rem;padding:0!important;background:linear-gradient(135deg,#6366f1,#d946ef)!important;box-shadow:0 4px 10px -2px rgba(168,85,247,.6)}
+h2{font-size:1.05rem;display:flex;align-items:center}
+button{transition:.2s}
+button:hover:not(:disabled){transform:translateY(-1px) scale(1.03)}
+button.bg-indigo-600{background:linear-gradient(135deg,#6366f1,#8b5cf6)!important;box-shadow:0 6px 14px -6px rgba(99,102,241,.8)}
+button.bg-green-600{background:linear-gradient(135deg,#10b981,#06b6d4)!important;box-shadow:0 6px 14px -6px rgba(16,185,129,.8)}
+button:disabled{opacity:.6;cursor:wait}
+label.cursor-pointer:hover{background:#eef2ff}
+#drop{background:rgba(238,242,255,.7);border-color:#a5b4fc;transition:.25s}
+#drop:hover{background:#e0e7ff;border-color:#7c3aed;box-shadow:0 0 0 6px rgba(167,139,250,.25)}
+input,textarea,select{background:rgba(255,255,255,.9)}
+input:focus,textarea:focus,select:focus{outline:none;border-color:#8b5cf6;box-shadow:0 0 0 3px rgba(139,92,246,.3)}
+tr:hover{background:rgba(238,242,255,.7)}
+#msg:not(:empty){background:rgba(255,255,255,.9);padding:.45rem 1rem;border-radius:9999px;box-shadow:0 6px 18px -8px rgba(0,0,0,.25)}
+#bar{background:linear-gradient(90deg,#10b981,#6366f1)!important;transition:width .3s}
+canvas{border-radius:.6rem}
+.fab{padding:.85rem 1.4rem;border-radius:9999px;color:#fff;font-weight:600;background:linear-gradient(135deg,#7c3aed,#db2777);box-shadow:0 14px 30px -8px rgba(124,58,237,.7);animation:bob 3s ease-in-out infinite}
+.fab.zip{background:linear-gradient(135deg,#0ea5e9,#6366f1);animation-delay:-1.5s}
+</style>
+</head>
+<body class="text-slate-800">
+<div class="blob" style="width:360px;height:360px;background:#818cf8;top:-100px;left:-90px"></div>
+<div class="blob" style="width:320px;height:320px;background:#f0abfc;top:30%;right:-100px;animation-delay:-5s"></div>
+<div class="blob" style="width:300px;height:300px;background:#fda4af;bottom:-100px;left:25%;animation-delay:-9s"></div>
+<div id="fabs" class="hidden fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3">
+  <button id="fabzip" class="hidden fab zip">⬇ Download ZIP</button>
+  <button id="fabgen" class="fab">⚡ Generate <span id="fabn"></span></button>
+</div>
+<header class="text-white px-6 py-6 shadow-lg" style="background:linear-gradient(120deg,#4f46e5,#7c3aed 55%,#db2777);border-radius:0 0 1.5rem 1.5rem">
+  <h1 class="text-2xl md:text-3xl font-extrabold tracking-tight">Bulk Certificate Name Changer</h1>
+  <p class="text-sm text-indigo-100">Everything runs in your browser. Your PDF and names are never uploaded or stored. · Created by Laxman Kumar Thakur</p>
+</header>
+<div id="msg" class="mx-6 mt-3 text-sm min-h-[1.5rem]" role="status"></div>
+<main class="p-6 grid lg:grid-cols-2 gap-6">
+<div class="space-y-5">
+
+<section class="bg-white rounded-xl shadow p-4">
+  <h2 class="font-semibold mb-2"><span class="bg-indigo-600 text-white rounded-full px-2 mr-2">1</span>Upload Certificate PDF</h2>
+  <label id="drop" class="block border-2 border-dashed border-slate-300 rounded-lg p-6 text-center cursor-pointer hover:border-indigo-500">
+    <input id="file" type="file" accept="application/pdf" class="hidden">
+    <span>Drag &amp; drop a single-page PDF here, or click to browse</span>
+  </label>
+  <div class="mt-2 flex justify-between text-sm"><span id="info" class="text-slate-500"></span>
+  <button id="clear" class="text-red-600 underline">Clear all data</button></div>
+</section>
+
+<section id="s2" class="hidden bg-white rounded-xl shadow p-4">
+  <h2 class="font-semibold mb-2"><span class="bg-indigo-600 text-white rounded-full px-2 mr-2">2</span>Select the Text(s) to Change</h2>
+  <div id="ftabs" class="flex flex-wrap gap-2 mb-2"></div>
+  <div class="flex flex-wrap gap-2 items-center mb-2 text-sm"><span>This text comes from:</span>
+    <select id="src" class="border rounded p-1"><option value="name">Recipient name (names list)</option><option value="fixed">Same text on every certificate</option></select>
+    <input id="fixed" placeholder="e.g. 18 October 2026" class="hidden border rounded px-2 py-1 flex-1 min-w-[10rem]"></div>
+  <div class="flex gap-2 mb-2">
+    <input id="old" placeholder="Type the current name on the certificate" class="border rounded px-2 py-1 flex-1">
+    <button id="find" class="bg-indigo-600 text-white rounded px-3">Find</button>
+  </div>
+  <p class="text-xs text-slate-500 mb-2">Or click a text chip, click the name on the preview, or drag a box around it (required for scanned PDFs). For a blank/empty area, just click the spot (or drag a box to set its size) and the text is written there without erasing anything. You can select several texts (e.g. a name that appears twice); all selected texts are erased and the recipient's name is written once, centred over the selected area (at the first selection's height). Click a selected text again to deselect it. <b>On a phone: double-tap</b> the text (or a blank spot) to select it; turn on Draw-box mode below to drag a box instead.</p>
+  <button id="drawmode" class="hidden mb-2 text-sm border rounded-full px-3 py-1">✏️ Draw-box mode: OFF (drag scrolls the page)</button>
+  <div id="chips" class="flex flex-wrap gap-1 mb-3"></div>
+  <div class="grid grid-cols-2 gap-3 text-sm">
+    <label>Font<select id="font" class="border rounded w-full p-1"></select></label>
+    <label>Size %<input id="sz" type="range" min="40" max="200" value="100" class="w-full"></label>
+    <label>Move X<input id="dx" type="range" min="-150" max="150" value="0" class="w-full"></label>
+    <label>Move Y<input id="dy" type="range" min="-60" max="60" value="0" class="w-full"></label>
+    <label class="col-span-2 text-sm">Text colour <input id="tcol" type="color" value="#000000" class="h-7 w-10 align-middle"> <button id="tauto" class="text-xs underline text-indigo-700">Auto</button></label>
+    <label class="col-span-2 text-xs">Or upload your own font (.ttf / .otf / .woff), e.g. for Hindi or other scripts<input id="cfont" type="file" accept=".ttf,.otf,.woff" class="block mt-1"></label>
+  </div>
+  <button id="reset" class="mt-2 text-sm text-indigo-700 underline">Reset sliders</button>
+  <button id="unsel" class="mt-2 ml-3 text-sm text-red-600 underline">Undo last selection</button>
+  <button id="unselall" class="mt-2 ml-3 text-sm text-red-600 underline">Clear selection</button>
+  <p class="text-xs text-slate-500 mt-2">Note: the old name is covered with the sampled background colour, not deleted. On textured backgrounds, check the preview. "Online" fonts are downloaded from jsDelivr when first used (only the font file is fetched; your PDF and names are not sent).</p>
+</section>
+
+<section id="s3" class="hidden bg-white rounded-xl shadow p-4">
+  <h2 class="font-semibold mb-2"><span class="bg-indigo-600 text-white rounded-full px-2 mr-2">3</span>Enter or Import Names <span id="count" class="text-sm font-normal text-slate-500"></span></h2>
+  <div id="colbox" class="hidden grid grid-cols-2 gap-2 text-sm mb-2 p-2 rounded-lg bg-indigo-50">
+    <label>Name column<select id="namecol" class="border rounded w-full p-1"></select></label>
+    <label>Also add to file name<select id="fncol" class="border rounded w-full p-1"></select></label></div>
+  <textarea id="paste" rows="4" placeholder="One name per line (extra columns: separate with Tab, or import CSV/Excel)" class="border rounded w-full p-2 text-sm"></textarea>
+  <div class="flex flex-wrap gap-2 my-2 text-sm">
+    <button id="addtxt" class="bg-indigo-600 text-white rounded px-3 py-1">Add names</button>
+    <label class="border rounded px-3 py-1 cursor-pointer">Import CSV / Excel<input id="imp" type="file" accept=".csv,.xlsx,.xls" class="hidden"></label>
+    <button id="addrow" class="border rounded px-3 py-1">+ Row</button>
+    <button id="dedupe" class="border rounded px-3 py-1">Remove duplicates</button>
+  </div>
+  <div class="max-h-72 overflow-auto"><table class="w-full text-sm"><tbody id="rows"></tbody></table></div>
+</section>
+
+<section id="s4" class="hidden bg-white rounded-xl shadow p-4">
+  <h2 class="font-semibold mb-2"><span class="bg-indigo-600 text-white rounded-full px-2 mr-2">4</span>Generate &amp; Download</h2>
+  <div class="flex flex-wrap gap-2 text-sm">
+    <button id="gen" class="bg-green-600 text-white rounded px-4 py-2 font-medium">Generate Certificates</button>
+    <button id="retry" class="hidden border border-amber-500 text-amber-700 rounded px-3 py-2">Retry failed</button>
+    <button id="zip" class="hidden bg-indigo-600 text-white rounded px-4 py-2">Download All as ZIP</button>
+  </div>
+  <div class="h-2 bg-slate-200 rounded mt-3"><div id="bar" class="h-2 bg-green-500 rounded w-0"></div></div>
+  <p id="prog" class="text-sm mt-1"></p>
+</section>
+</div>
+
+<div class="lg:sticky lg:top-4 self-start grid sm:grid-cols-2 gap-4">
+  <div class="card bg-white rounded-xl shadow p-3"><h3 class="text-sm font-semibold mb-1">Original (select name here)</h3>
+    <div class="relative"><canvas id="cv" class="w-full"></canvas><canvas id="ov" class="absolute inset-0 w-full h-full cursor-crosshair" style="touch-action:manipulation"></canvas></div></div>
+  <div class="card bg-white rounded-xl shadow p-3"><h3 class="text-sm font-semibold mb-1">Edited preview: <span id="pvname" class="text-indigo-700"></span></h3>
+    <canvas id="pv" class="w-full"></canvas></div>
+</div>
+</main>
+<footer class="text-center text-sm text-slate-500 py-4">Created by Laxman Kumar Thakur</footer>
+
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+const $=id=>document.getElementById(id), SC=1.5;
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let tpl,page,vp,H,items=[],styles={},fields=[],cur=0,regions=[],names=[],cols=[],hdr=[],nameCol=0,fncol=-1,results=[],sel=0,pvTok=0,busy=false;
+const say=(t,bad)=>{$('msg').className='mx-6 mt-3 text-sm '+(bad===1?'text-red-600':bad===2?'text-amber-700':'text-green-700');$('msg').textContent=t};
+
+// ---------- Step 1: upload ----------
+$('file').onchange=e=>load(e.target.files[0]);
+$('drop').ondragover=e=>e.preventDefault();
+$('drop').ondrop=e=>{e.preventDefault();load(e.dataTransfer.files[0])};
+async function load(f){
+  if(!f)return;
+  try{
+    if(f.size>25e6)throw Error('File is larger than 25 MB.');
+    const buf=new Uint8Array(await f.arrayBuffer());
+    if(String.fromCharCode(...buf.slice(0,5))!=='%PDF-')throw Error('This is not a valid PDF file.');
+    const doc=await pdfjsLib.getDocument({data:buf.slice()}).promise;
+    tpl=buf; page=await doc.getPage(1); vp=page.getViewport({scale:SC}); H=vp.height/SC;
+    const cv=$('cv'),ov=$('ov'); cv.width=ov.width=vp.width; cv.height=ov.height=vp.height;
+    await page.render({canvasContext:cv.getContext('2d'),viewport:vp}).promise;
+    const tc=await page.getTextContent(); styles=tc.styles;
+    items=tc.items.filter(i=>i.str.trim());
+    fields=[newField(0)];cur=0;regions=fields[0].regions;results=[];switchField(0);drawOv(); $('pv').getContext('2d').clearRect(0,0,9999,9999);
+    ['s2','s3','s4'].forEach(s=>$(s).classList.remove('hidden'));$('fabs').classList.remove('hidden');
+    $('info').textContent=`${f.name} · ${Math.round(vp.width/SC)}×${Math.round(H)} pt · ${doc.numPages} page(s)`;
+    $('chips').innerHTML='';
+    if(!items.length){say('No selectable text found: this looks like a scanned/image PDF. Drag a box around the name to select it manually (OCR is not included).',2)}
+    else{
+      say(doc.numPages>1?'Only page 1 will be used.':'PDF loaded. Select the existing name.',doc.numPages>1?2:0);
+      [...items].sort((a,b)=>b.height-a.height).slice(0,14).forEach(it=>{
+        const b=document.createElement('button');b.className='border rounded px-2 text-xs hover:bg-indigo-50';b.textContent=it.str.trim().slice(0,30);b.onclick=()=>setItem(it);$('chips').append(b)});
+    }
+  }catch(err){say('Could not open PDF: '+err.message,1)}
+}
+$('clear').onclick=()=>{tpl=page=null;fields=[newField(0)];cur=0;regions=fields[0].regions;names=[];cols=[];hdr=[];nameCol=0;fncol=-1;$('colbox').classList.add('hidden');results=[];items=[];['s2','s3','s4'].forEach(s=>$(s).classList.add('hidden'));$('fabs').classList.add('hidden');['zip','fabzip','retry'].forEach(i=>$(i).classList.add('hidden'));
+  [$('cv'),$('ov'),$('pv')].forEach(c=>{c.width=c.height=0});$('info').textContent='';$('chips').innerHTML='';$('paste').value='';$('file').value='';renderRows();renderFields();fillSrc();say('All data cleared.')};
+
+// ---------- Step 2: select name ----------
+const itemBox=it=>{const t=pdfjsLib.Util.transform(vp.transform,it.transform),h=it.height*SC;return[t[4],t[5]-h,it.width*SC,h*1.25]};
+function setItem(it,q){
+  let x=it.transform[4],w=it.width;
+  if(q){const s=it.str.toLowerCase(),i=s.indexOf(q.toLowerCase());if(i>=0&&s.trim().length>q.length){x+=w*i/s.length;w=w*q.length/s.length}}
+  const fs=it.height||12,ff=(styles[it.fontName]||{}).fontFamily||'';
+  const r={bx:x,bw:w,fs,base:it.transform[5],by:it.transform[5]-.28*fs,bh:1.25*fs,txt:q||it.str.trim(),font:/mono/.test(ff)?'Courier':/serif/.test(ff)&&!/sans/.test(ff)?'TimesRoman':'Helvetica'};
+  afterRegion(r);
+}
+function manual(x0,y0,x1,y1){
+  const l=Math.min(x0,x1)/SC,r=Math.max(x0,x1)/SC,t=Math.min(y0,y1)/SC,b=Math.max(y0,y1)/SC,bh=b-t;
+  afterRegion({bx:l,bw:r-l,bh,by:H-b,fs:bh*.7,base:H-b+bh*.27,txt:'(manual region)',font:$('font').value,manual:true,noText:items.length>0&&!items.some(it=>{const[x,y,w,h]=itemBox(it);return x<Math.max(x0,x1)&&x+w>Math.min(x0,x1)&&y<Math.max(y0,y1)&&y+h>Math.min(y0,y1)})});
+}
+function afterRegion(r){const d=regions.findIndex(o=>Math.abs(o.bx-r.bx)<1&&Math.abs(o.by-r.by)<1);
+  if(d>=0){regions.splice(d,1);renderFields();drawOv();refresh();return say('Selection removed. '+regions.length+' selected.')}
+  sampleColors(r);if(r.manual&&!r.blank&&!items.length)r.noText=!r.ink;regions.push(r);if(regions.length==1){fields[cur].font=r.font;$('font').value=r.font;if(!fields[cur].color)$('tcol').value=hexOf(r.fg)}renderFields();drawOv();say(r.noText?'Blank spot selected: the text will be written here and nothing is erased. Adjust size/position with the sliders.':regions.length+' text(s) selected (last: '+r.txt+'). Select more or check the preview.');refresh()}
+$('find').onclick=()=>{
+  const q=$('old').value.trim().toLowerCase();if(!q)return say('Type the existing name first.',2);
+  const m=items.filter(i=>i.str.toLowerCase().includes(q));
+  m.length?m.forEach(it=>setItem(it,q)):say('Name not found automatically. Click it on the preview or drag a box around it.',2)};
+const ov=$('ov');let drag=null;
+const pos=e=>{const r=ov.getBoundingClientRect();return[(e.clientX-r.left)*ov.width/r.width,(e.clientY-r.top)*ov.height/r.height]};
+let drawMode=false,lastTap=null,tdown=null;
+function pickAt(a,b){const it=items.find(i=>{const[x,y,w,h]=itemBox(i);return a>=x&&a<=x+w&&b>=y&&b<=y+h});it?setItem(it):placeBlank(a,b)}
+ov.onpointerdown=e=>{
+  if(e.pointerType==='touch'&&!drawMode){tdown={p:pos(e),t:Date.now()};return}
+  ov.setPointerCapture(e.pointerId);drag={s:pos(e),c:pos(e)}};
+ov.onpointermove=e=>{if(drag){drag.c=pos(e);drawOv()}};
+ov.onpointercancel=()=>{tdown=null};
+ov.onpointerup=e=>{
+  if(tdown){const p=pos(e),moved=Math.hypot(p[0]-tdown.p[0],p[1]-tdown.p[1])>12,now=Date.now();
+    if(!moved&&now-tdown.t<400){
+      if(lastTap&&now-lastTap.t<450&&Math.hypot(p[0]-lastTap.p[0],p[1]-lastTap.p[1])<40){lastTap=null;pickAt(p[0],p[1])}
+      else{lastTap={p,t:now};say('Double-tap to select this spot.')}}
+    tdown=null;return}
+  if(!drag)return;const[a,b]=drag.s,[c,d]=drag.c;drag=null;
+  if(Math.hypot(c-a,d-b)<6)pickAt(a,b);else manual(a,b,c,d)};
+$('drawmode').onclick=()=>{drawMode=!drawMode;ov.style.touchAction=drawMode?'none':'manipulation';$('drawmode').textContent=drawMode?'✏️ Draw-box mode: ON (drag to draw a box)':'✏️ Draw-box mode: OFF (drag scrolls the page)'};
+if(matchMedia('(pointer:coarse)').matches)$('drawmode').classList.remove('hidden');
+function drawOv(){
+  const c=ov.getContext('2d');c.clearRect(0,0,ov.width,ov.height);c.lineWidth=2;
+  fields.forEach((fl,k)=>fl.regions.forEach(r=>{c.strokeStyle=k===cur?'#dc2626':'#2563eb';c.setLineDash([]);c.strokeRect(r.bx*SC,(H-r.by-r.bh)*SC,r.bw*SC,r.bh*SC)}));
+  if(drag){c.strokeStyle='#2563eb';c.setLineDash([5,4]);c.strokeRect(drag.s[0],drag.s[1],drag.c[0]-drag.s[0],drag.c[1]-drag.s[1])}
+}
+function sampleColors(region){let bg,fg;
+  const cv=$('cv'),c=cv.getContext('2d'),x=region.bx*SC,y=(H-region.by-region.bh)*SC,w=region.bw*SC,h=region.bh*SC;
+  const px=(a,b)=>c.getImageData(Math.max(0,Math.min(cv.width-1,a|0)),Math.max(0,Math.min(cv.height-1,b|0)),1,1).data;
+  const cnt={};
+  for(let i=0;i<=24;i++){const t=i/24;for(const[a,b]of[[x-3+t*(w+6),y-3],[x-3+t*(w+6),y+h+3],[x-3,y-3+t*(h+6)],[x+w+3,y-3+t*(h+6)]]){
+    const p=px(a,b),k=[p[0]>>4,p[1]>>4,p[2]>>4].join();(cnt[k]=cnt[k]||{n:0,p}).n++}}
+  bg=Object.values(cnt).sort((a,b)=>b.n-a.n)[0].p.slice(0,3);
+  const W=Math.max(1,Math.min(w|0,cv.width-(x|0))),Hh=Math.max(1,Math.min(h|0,cv.height-(y|0)));
+  const d=c.getImageData(Math.max(0,x|0),Math.max(0,y|0),W,Hh).data;let best=0;fg=[0,0,0];
+  for(let i=0;i<d.length;i+=4){const dist=Math.abs(d[i]-bg[0])+Math.abs(d[i+1]-bg[1])+Math.abs(d[i+2]-bg[2]);if(dist>best){best=dist;fg=[d[i],d[i+1],d[i+2]]}}
+  if(best<90)fg=bg.reduce((a,b)=>a+b)>380?[0,0,0]:[255,255,255];
+  region.bg=bg;region.fg=fg;region.ink=best>=90;
+}
+['sz','dx','dy'].forEach(i=>$(i).oninput=()=>{const f=fields[cur];f.sz=+$('sz').value;f.dx=+$('dx').value;f.dy=+$('dy').value;refresh()});$('font').onchange=()=>{fields[cur].font=$('font').value;refresh()};
+$('reset').onclick=()=>{const f=fields[cur];f.sz=100;f.dx=f.dy=0;$('sz').value=100;$('dx').value=0;$('dy').value=0;refresh()};
+$('unsel').onclick=()=>{regions.pop();renderFields();drawOv();refresh();say(regions.length+' text(s) selected.')};
+$('unselall').onclick=()=>{fields[cur].regions=regions=[];renderFields();drawOv();refresh();say('Selection cleared.')};
+
+// ---------- PDF building ----------
+async function build(vals){
+  const{PDFDocument,rgb}=PDFLib;
+  const doc=await PDFDocument.load(tpl);while(doc.getPageCount()>1)doc.removePage(1);
+  const p=doc.getPage(0),W=p.getWidth();
+  for(const[k,fl]of fields.entries()){
+    const rs=fl.regions;if(!rs.length)continue;
+    const name=vals[k]||'',r0=rs[0],f=await getFont(doc,fl.font);
+    for(const r of rs)if(!r.noText)p.drawRectangle({x:r.bx-2,y:r.by-1,width:r.bw+4,height:r.bh+2,color:rgb(...r.bg.map(v=>v/255)),borderWidth:0});
+    if(!name.trim())continue;
+    const x0=Math.min(...rs.map(r=>r.bx)),x1=Math.max(...rs.map(r=>r.bx+r.bw)),uw=x1-x0;
+    let s=Math.max(...rs.map(r=>r.fs))*fl.sz/100,w;
+    try{w=f.widthOfTextAtSize(name,s)}catch{throw Error('This font cannot display some characters in "'+name+'".')}
+    const maxW=Math.min(W*.9,Math.max(uw*1.25,W*.5));
+    if(w>maxW){s=Math.max(6,s*maxW/w);w=f.widthOfTextAtSize(name,s)}
+    p.drawText(name,{x:x0+uw/2-w/2+fl.dx,y:r0.base+fl.dy,size:s,font:f,color:rgb(...(fl.color?[1,3,5].map(i=>parseInt(fl.color.substr(i,2),16)):r0.fg).map(v=>v/255))});
+  }
+  return doc.save();
+}
+async function refresh(){
+  if(!tpl||!fields.some(f=>f.regions.length))return;const tok=++pvTok,nm=(names[sel]||'').trim()||'Sample Name';$('pvname').textContent=nm;
+  try{const bytes=await build(valsFor(sel));const d=await pdfjsLib.getDocument({data:bytes}).promise,pg=await d.getPage(1);
+    if(tok!==pvTok)return;const c=$('pv');c.width=vp.width;c.height=vp.height;await pg.render({canvasContext:c.getContext('2d'),viewport:pg.getViewport({scale:SC})}).promise}
+  catch(e){say('Preview failed: '+e.message,1)}
+}
+
+// ---------- Step 3: names ----------
+const clean=a=>a.map(s=>String(s??'').trim()).filter(Boolean);
+$('addtxt').onclick=()=>{const L=$('paste').value.split(/\r?\n/).filter(l=>l.trim());L.forEach(l=>{const p=l.split('\t').map(x=>x.trim());names.push(p[0]);cols.push(p)});if(!hdr.length&&L.some(l=>l.includes('\t'))){const w=Math.max(...L.map(l=>l.split('\t').length));hdr=Array.from({length:w},(_,j)=>'Column '+(j+1));nameCol=0;fncol=-1;fillNameUI();fillSrc()}$('paste').value='';renderRows();if(L.length)say(L.length+' name(s) added.');refresh()};
+$('addrow').onclick=()=>{names.push('');cols.push([]);renderRows()};
+$('dedupe').onclick=()=>{const seen=new Set(),n=names.length;const keep=names.map((x,i)=>{const k=(x.trim()+'|'+(cols[i]||[]).join('|')).toLowerCase();if(!x.trim()||seen.has(k))return -1;seen.add(k);return i}).filter(i=>i>=0);cols=keep.map(i=>cols[i]||[]);names=keep.map(i=>names[i]);results=[];renderRows();say(`Removed ${n-names.length} duplicate/empty entries.`)};
+$('imp').onchange=async e=>{
+  const f=e.target.files[0];if(!f)return;
+  try{let rows;
+    if(/\.csv$/i.test(f.name))rows=Papa.parse(await f.text(),{skipEmptyLines:true}).data;
+    else{const wb=XLSX.read(await f.arrayBuffer());rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1})}
+    rows=rows.filter(r=>r&&r.some(c=>String(c??'').trim())).map(r=>r.map(c=>String(c??'').trim()));
+    if(!rows.length)throw Error('The file is empty.');
+    let h=null;if(rows.length>1&&rows[0].some(c=>/name|^id$|roll|reg|enrol|student/i.test(c)))h=rows.shift();
+    const w=Math.max(...rows.map(r=>r.length));
+    hdr=Array.from({length:w},(_,j)=>(h&&h[j])||'Column '+(j+1));
+    nameCol=hdr.findIndex(x=>/name/i.test(x));
+    if(nameCol<0){nameCol=rows[0].findIndex(v=>/[A-Za-z]/.test(v)&&!/\d/.test(v));if(nameCol<0)nameCol=0}
+    fncol=hdr.findIndex((x,j)=>j!==nameCol&&/id|roll|reg|enrol/i.test(x));
+    names=rows.map(r=>r[nameCol]||'');cols=rows;results=[];sel=0;
+    fillNameUI();fillSrc();renderRows();
+    say(`Imported ${rows.length} rows. Name column: "${hdr[nameCol]}". Check it in step 3; other columns (e.g. ID) can be used in more fields in step 2.`);refresh()}
+  catch(err){say('Import failed: '+err.message,1)}e.target.value=''};
+function renderRows(){
+  $('count').textContent=names.length?`(${names.length} names)`:'';$('fabn').textContent=names.length?'('+names.length+')':'';
+  $('rows').innerHTML=names.map((n,i)=>{const r=results[i];
+    const st=!r?'':r.bytes?'<span class="text-green-600">✓</span>':`<span class="text-red-600" title="${esc(r.err)}">✗ ${esc(r.err||'')}</span>`;
+    return`<tr class="border-b ${i===sel?'bg-indigo-50':''}"><td class="w-8 text-slate-400">${i+1}</td>
+    <td><input data-i="${i}" value="${esc(n)}" class="nm border rounded px-1 w-full ${n.trim()?'':'border-red-400'}"></td><td class="text-xs text-slate-400">${esc((cols[i]||[]).filter((_,j)=>j!==nameCol).join(' · '))}</td><td class="text-xs">${st}</td>
+    <td class="whitespace-nowrap text-xs"><button data-p="${i}" class="text-indigo-700 px-1">Preview</button>${r&&r.bytes?`<button data-d="${i}" class="text-green-700 px-1">PDF</button>`:''}<button data-x="${i}" class="text-red-600 px-1">✕</button></td></tr>`}).join('')}
+$('rows').oninput=e=>{if(e.target.dataset.i!=null){names[e.target.dataset.i]=e.target.value;results[e.target.dataset.i]=null}};
+$('rows').onchange=e=>{if(e.target.dataset.i!=null){renderRows();refresh()}};
+$('rows').onclick=e=>{const d=e.target.dataset;
+  if(d.p!=null){sel=+d.p;renderRows();refresh()}
+  else if(d.x!=null){names.splice(+d.x,1);cols.splice(+d.x,1);results.splice(+d.x,1);sel=0;renderRows();refresh()}
+  else if(d.d!=null)save(results[d.d].bytes,results[d.d].fn)};
+
+// ---------- Step 4: generate ----------
+const safe=n=>('Certificate_'+n.trim().replace(/[^\p{L}\p{N}]+/gu,'_').replace(/^_+|_+$/g,'')).slice(0,90)+'.pdf';
+function save(data,fn){const a=document.createElement('a');a.href=URL.createObjectURL(data instanceof Blob?data:new Blob([data],{type:'application/pdf'}));a.download=fn;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),4000)}
+async function run(only){
+  if(busy)return;if(!fields.some(f=>f.regions.length))return say('Select the existing name first (step 2).',1);
+  const empties=names.filter(n=>!n.trim()).length;
+  if(empties){const kp=names.map((n,i)=>n.trim()?i:-1).filter(i=>i>=0);cols=kp.map(i=>cols[i]||[]);names=kp.map(i=>names[i]);results=[];say(`${empties} empty entr${empties>1?'ies were':'y was'} removed.`,2)}
+  if(!names.length)return say('Add at least one name.',1);
+  busy=true;$('gen').disabled=true;
+  const used=new Set();names.forEach((n,i)=>{let fn=safe(fb(n,i)),k=2;while(used.has(fn.toLowerCase()))fn=safe(fb(n,i)).replace(/\.pdf$/,'_'+k++ +'.pdf');used.add(fn.toLowerCase());(results[i]=results[i]&&only?results[i]:{}).fn=fn});
+  const todo=names.map((_,i)=>i).filter(i=>only?!results[i].bytes:true);
+  let done=0;
+  for(const i of todo){
+    try{results[i].bytes=await build(valsFor(i));results[i].err=null}catch(e){results[i].bytes=null;results[i].err=e.message}
+    done++;$('bar').style.width=done/todo.length*100+'%';$('prog').textContent=`${done} of ${todo.length} certificates generated`;
+    if(done%5==0)await new Promise(r=>setTimeout(r));
+  }
+  const ok=results.filter(r=>r&&r.bytes).length,bad=names.length-ok;
+  $('prog').textContent=`Done: ${ok} succeeded, ${bad} failed.`;say(bad?`${bad} certificate(s) failed. Fix the names and press Retry.`:'All certificates generated.',bad?2:0);
+  $('retry').classList.toggle('hidden',!bad);$('zip').classList.toggle('hidden',!ok);$('fabzip').classList.toggle('hidden',!ok);
+  busy=false;$('gen').disabled=false;renderRows();
+}
+$('gen').onclick=()=>run(false);$('fabgen').onclick=()=>$('gen').click();$('fabzip').onclick=()=>$('zip').click();$('retry').onclick=()=>run(true);
+$('zip').onclick=async()=>{const z=new JSZip();results.forEach(r=>r&&r.bytes&&z.file(r.fn,r.bytes));
+  say('Building ZIP…');save(await z.generateAsync({type:'blob'}),'Certificates.zip');say('ZIP downloaded.')};
+const STD=[['TimesRoman','Times'],['TimesRomanBold','Times Bold'],['TimesRomanItalic','Times Italic'],['TimesRomanBoldItalic','Times Bold Italic'],['Helvetica','Helvetica'],['HelveticaBold','Helvetica Bold'],['HelveticaOblique','Helvetica Italic'],['HelveticaBoldOblique','Helvetica Bold Italic'],['Courier','Courier'],['CourierBold','Courier Bold'],['CourierOblique','Courier Italic'],['CourierBoldOblique','Courier Bold Italic']];
+const WEB=[['Script / Elegant',[['great-vibes','Great Vibes'],['dancing-script','Dancing Script'],['allura','Allura'],['alex-brush','Alex Brush'],['pinyon-script','Pinyon Script'],['parisienne','Parisienne'],['sacramento','Sacramento'],['lobster','Lobster'],['pacifico','Pacifico']]],
+['Serif',[['playfair-display','Playfair Display'],['playfair-display:700','Playfair Display Bold'],['cinzel','Cinzel'],['cinzel:700','Cinzel Bold'],['cormorant-garamond','Cormorant Garamond'],['lora','Lora'],['libre-baskerville','Libre Baskerville'],['merriweather','Merriweather']]],
+['Sans-serif',[['montserrat','Montserrat'],['montserrat:700','Montserrat Bold'],['roboto','Roboto'],['roboto:700','Roboto Bold'],['open-sans','Open Sans'],['oswald','Oswald']]]];
+$('font').innerHTML='<optgroup label="Standard (built-in)">'+STD.map(([v,n])=>`<option value="${v}">${n}</option>`).join('')+'</optgroup>'+WEB.map(([g,l])=>`<optgroup label="${g} (online)">`+l.map(([v,n])=>`<option value="w:${v}">${n}</option>`).join('')+'</optgroup>').join('')+'<optgroup label="Your fonts" id="cgrp"></optgroup>';
+const fontCache={};
+async function getFont(doc,v){
+  if(!/^[wc]:/.test(v))return doc.embedFont(PDFLib.StandardFonts[v]);
+  doc.registerFontkit(fontkit);
+  if(!fontCache[v]){const[id,wt='400']=v.slice(2).split(':');
+    const r=await fetch(`https://cdn.jsdelivr.net/npm/@fontsource/${id}/files/${id}-latin-${wt}-normal.woff`).catch(()=>null);
+    if(!r||!r.ok)throw Error('Could not download the font "'+id+'" (internet needed). Pick another font.');
+    fontCache[v]=new Uint8Array(await r.arrayBuffer())}
+  return doc.embedFont(fontCache[v],{subset:true});
+}
+$('cfont').onchange=async e=>{const f=e.target.files[0];if(!f)return;
+  fontCache['c:'+f.name]=new Uint8Array(await f.arrayBuffer());
+  const o=new Option('Custom: '+f.name,'c:'+f.name);$('cgrp').append(o);$('font').value=o.value;$('font').onchange();e.target.value=''};
+function newField(k){return{label:'Field '+(k+1),regions:[],src:k?(hdr.length>1?'col'+(nameCol===0?1:0):'fixed'):'name',fixed:'',font:'TimesRoman',color:null,sz:100,dx:0,dy:0}}
+const valsFor=i=>fields.map(f=>f.src==='fixed'?f.fixed:!names.length?(f.src==='name'?'Sample Name':'Sample'):f.src==='name'?(names[i]||'').trim():((cols[i]||[])[+f.src.slice(3)]||'').trim());
+function renderFields(){
+  $('ftabs').innerHTML=fields.map((f,k)=>{f.label='Field '+(k+1);return`<button data-f="${k}" class="px-3 py-1 rounded-full text-sm border ${k===cur?'text-white':'bg-white'}" ${k===cur?'style="background:linear-gradient(135deg,#6366f1,#d946ef)"':''}>${f.label}${f.regions.length?' ('+f.regions.length+')':''}</button>`}).join('')+'<button data-f="add" class="px-3 py-1 rounded-full text-sm border border-dashed border-indigo-400">+ Add another text</button>'+(fields.length>1?'<button data-f="del" class="px-3 py-1 text-sm text-red-600">Remove this field</button>':'')}
+function switchField(k){cur=k;const f=fields[k];regions=f.regions;
+  fillSrc();$('fixed').value=f.fixed;$('fixed').classList.toggle('hidden',f.src!=='fixed');
+  $('sz').value=f.sz;$('dx').value=f.dx;$('dy').value=f.dy;$('font').value=f.font;$('tcol').value=f.color||hexOf(f.regions[0]&&f.regions[0].fg);renderFields();drawOv();say('Editing '+f.label+': select its text on the preview.')}
+$('ftabs').onclick=e=>{const k=e.target.dataset.f;if(k==null)return;
+  if(k==='add'){fields.push(newField(fields.length));switchField(fields.length-1)}
+  else if(k==='del'){fields.splice(cur,1);switchField(Math.max(0,cur-1));refresh()}
+  else switchField(+k)};
+$('src').onchange=()=>{fields[cur].src=$('src').value;$('fixed').classList.toggle('hidden',$('src').value!=='fixed');refresh()};
+$('fixed').oninput=()=>{fields[cur].fixed=$('fixed').value;refresh()};
+function fillNameUI(){$('colbox').classList.remove('hidden');const o=hdr.map((h,j)=>`<option value="${j}">${esc(h)}</option>`).join('');
+  $('namecol').innerHTML=o;$('namecol').value=nameCol;$('fncol').innerHTML='<option value="-1">Nothing (name only)</option>'+o;$('fncol').value=fncol}
+function fillSrc(){const f=fields[cur];if(!f)return;
+  $('src').innerHTML='<option value="name">Recipient name</option><option value="fixed">Same text on every certificate</option>'+hdr.map((h,j)=>j===nameCol?'':`<option value="col${j}">Column: ${esc(h)}</option>`).join('');
+  if(![...$('src').options].some(o=>o.value===f.src))f.src='name';$('src').value=f.src;$('fixed').classList.toggle('hidden',f.src!=='fixed')}
+$('namecol').onchange=()=>{nameCol=+$('namecol').value;names=cols.map((r,i)=>r.length>nameCol?r[nameCol]:names[i]);results=[];renderRows();fillSrc();refresh()};
+$('fncol').onchange=()=>{fncol=+$('fncol').value};
+const fb=(n,i)=>(fncol>=0&&cols[i]&&cols[i][fncol]?cols[i][fncol]+'_':'')+n;
+const hexOf=c=>c?'#'+c.map(v=>v.toString(16).padStart(2,'0')).join(''):'#000000';
+function placeBlank(px,py){const fs=24,W=vp.width/SC,bw=W*.4,base=H-py/SC-fs*.3;
+  afterRegion({bx:Math.max(0,Math.min(W-bw,px/SC-bw/2)),bw,fs,base,by:base-.28*fs,bh:1.25*fs,txt:'(blank spot)',font:$('font').value,manual:true,blank:true,noText:true})}
+$('tcol').oninput=()=>{fields[cur].color=$('tcol').value;refresh()};
+$('tauto').onclick=()=>{const f=fields[cur];f.color=null;$('tcol').value=hexOf(f.regions[0]&&f.regions[0].fg);refresh()};
+fields=[newField(0)];regions=fields[0].regions;renderFields();
+renderRows();
+</script>
+</body></html>
